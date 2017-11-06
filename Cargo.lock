@@ -147,7 +147,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sq"
+name = "squeeze"
 version = "0.0.1"
 dependencies = [
  "termfest 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
