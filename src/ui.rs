@@ -3,67 +3,64 @@ use std::sync::mpsc::{Sender, Receiver};
 use sq::Sq;
 use sq::result;
 
-use termfest::{Termfest, Event, Cell};
+use termfest::{Termfest, Event, Cell, ScreenLock};
 use termfest::attr::{Color, Attribute};
 use termfest::key::*;
 
 pub struct Ui {
+    sq: Arc<Mutex<Sq>>,
     width: usize,
     height: usize,
     term: Termfest,
-    events: Receiver<Event>,
 }
 
 impl Ui {
-    pub fn new() -> Ui {
-        let (term, events) = Termfest::hold().expect("failed to initialize terminal");
+    pub fn new(sq: Arc<Mutex<Sq>>, term: Termfest) -> Ui {
         let (width, height) = term.lock_screen().size();
         Ui {
+            sq,
             width,
             height,
             term,
-            events,
         }
     }
 
-    pub fn start(self,
-                 sq: Arc<Mutex<Sq>>,
-                 input: Arc<Mutex<String>>,
-                 intr_tx: Sender<()>,
-                 render_tx: Sender<usize>,
-                 render_rx: Receiver<usize>) {
-        loop {
-            for ev in self.events.iter() {
-                match ev {
-                    Event::Char(c) => {
-                        input.lock().unwrap().push(c);
-                        intr_tx.send(()).unwrap();
-                    }
-                    Event::Key(ESC) => break,
-                    _ => {}
-                }
-                render_tx.send(0).unwrap();
+    pub fn event_handler(&self, ev: Event) -> Option<String> {
+        match ev {
+            Event::Char(c) => {
+                self.sq.lock().unwrap().push_input(c);
             }
+            Event::Key(ESC) => return Some(String::new()),
+            _ => {}
         }
+        return None;
     }
 
-    pub fn clear(&self) {
-        self.term.lock_screen().clear();
-    }
-
-
-    pub fn show_prompt(&self, input: &str) {
+    pub fn render(&self) {
         let mut screen = self.term.lock_screen();
+        screen.clear();
+        for (idx, r) in self.sq.lock().unwrap().results().iter().enumerate() {
+            self.show_result(&mut screen, r, idx + 1, false);
+        }
+        self.show_prompt(&mut screen);
+    }
+
+    fn show_prompt(&self, screen: &mut ScreenLock) {
+        let sq = self.sq.lock().unwrap();
         for x in 0..self.width {
             screen.put_cell(x, 0, Cell::new(' '));
         }
         let prompt = "> ";
         screen.print(0, 0, prompt, Attribute::default());
-        screen.print(prompt.len(), 0, input, Attribute::default());
-        screen.move_cursor(prompt.len() + input.len(), 0);
+        screen.print(prompt.len(), 0, sq.needle(), Attribute::default());
+        screen.move_cursor(prompt.len() + sq.needle().len(), 0);
     }
 
-    fn show_result(&self, result: &result::Result, y: usize, selected: bool) {
+    fn show_result(&self,
+                   screen: &mut ScreenLock,
+                   result: &result::Result,
+                   y: usize,
+                   selected: bool) {
         if y >= self.height {
             return;
         }
@@ -72,7 +69,6 @@ impl Ui {
         } else {
             Color::Default
         };
-        let mut screen = self.term.lock_screen();
         for x in 0..self.width {
             screen.put_cell(x, y + 1, Cell::new(' ').bg(bg));
         }
