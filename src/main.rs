@@ -19,8 +19,8 @@ fn main() {
 }
 
 fn get_async_candidates(sq: Arc<Mutex<sq::Sq>>, ch: mpsc::Sender<()>) {
-    let _ = thread::scoped(move || {
-        let mut stdin = std::io::stdin();
+    let _ = thread::spawn(move || {
+        let stdin = std::io::stdin();
         loop {
             let mut buf = String::new();
             match stdin.read_line(&mut buf) {

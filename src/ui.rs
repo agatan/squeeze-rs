@@ -5,6 +5,7 @@ use sq::result;
 
 use termfest::{Termfest, Event, Cell};
 use termfest::attr::{Color, Attribute};
+use termfest::key::*;
 
 pub struct Ui {
     width: usize,
@@ -38,6 +39,7 @@ impl Ui {
                         input.lock().unwrap().push(c);
                         intr_tx.send(()).unwrap();
                     }
+                    Event::Key(ESC) => break,
                     _ => {}
                 }
                 render_tx.send(0).unwrap();
@@ -53,12 +55,7 @@ impl Ui {
     pub fn show_prompt(&self, input: &str) {
         let mut screen = self.term.lock_screen();
         for x in 0..self.width {
-            screen.put_cell(x,
-                            0,
-                            Cell {
-                                ch: ' ',
-                                attribute: Attribute::default(),
-                            });
+            screen.put_cell(x, 0, Cell::new(' '));
         }
         let prompt = "> ";
         screen.print(0, 0, prompt, Attribute::default());
@@ -77,15 +74,7 @@ impl Ui {
         };
         let mut screen = self.term.lock_screen();
         for x in 0..self.width {
-            screen.put_cell(x,
-                            y + 1,
-                            Cell {
-                                ch: ' ',
-                                attribute: Attribute {
-                                    bg: bg,
-                                    ..Attribute::default()
-                                },
-                            });
+            screen.put_cell(x, y + 1, Cell::new(' ').bg(bg));
         }
         if result.matches.is_empty() {
             screen.print(0,
@@ -103,16 +92,7 @@ impl Ui {
             } else {
                 Color::Default
             };
-            screen.put_cell(idx,
-                            y + 1,
-                            Cell {
-                                ch: c,
-                                attribute: Attribute {
-                                    fg: fg,
-                                    bg: bg,
-                                    ..Attribute::default()
-                                },
-                            });
+            screen.put_cell(idx, y + 1, Cell::new(c).fg(fg).bg(bg));
         }
     }
 }

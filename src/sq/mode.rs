@@ -1,7 +1,3 @@
-extern crate core;
-use self::core::str::StrExt;
-use std;
-
 use sq::result;
 pub use self::Mode::{Normal, Regexp, Fuzzy};
 
@@ -37,9 +33,9 @@ impl Mode {
 
 fn refine_normal_string(target: &str, needle: &str) -> Option<result::Result> {
     let mut idx = 0usize;
-    let mut matches = std::collections::BTreeSet::new();
+    let mut matches = ::std::collections::BTreeSet::new();
     for n in needle.split_terminator(' ').filter(|s| !s.is_empty()) {
-        if let Some(start) = target.slice_chars(idx, target.len()).find_str(n) {
+        if let Some(start) = target[idx..].find(n) {
             idx = start;
             for x in idx..idx + n.len() {
                 matches.insert(x);
