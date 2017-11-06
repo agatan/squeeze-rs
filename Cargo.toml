@@ -4,4 +4,4 @@ version = "0.0.1"
 authors = ["agatan <m.k.mahoo@gmail.com>"]
 
 [dependencies]
-rustbox = "0.5.0"
+termfest = "0.1"

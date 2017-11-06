@@ -1,13 +1,8 @@
-#![feature(core)]
-#![feature(collections)]
-
-extern crate rustbox;
+extern crate termfest;
 
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc;
-
-use rustbox::{RustBox};
 
 mod sq;
 mod ui;
@@ -24,13 +19,13 @@ fn main() {
 }
 
 fn get_async_candidates(sq: Arc<Mutex<sq::Sq>>, ch: mpsc::Sender<()>) {
-    let _ = thread::scoped(move|| {
+    let _ = thread::scoped(move || {
         let mut stdin = std::io::stdin();
         loop {
             let mut buf = String::new();
             match stdin.read_line(&mut buf) {
                 Ok(0) => return,
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => panic!("{}", e),
             }
             let mut sq = sq.lock().unwrap();

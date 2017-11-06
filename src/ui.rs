@@ -1,85 +1,118 @@
-extern crate rustbox;
-use std;
-use std::sync::{ Arc, Mutex };
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Sender, Receiver};
-use std::thread;
-use sq;
+use sq::Sq;
 use sq::result;
 
-use rustbox::{RustBox, Color, Key};
+use termfest::{Termfest, Event, Cell};
+use termfest::attr::{Color, Attribute};
 
 pub struct Ui {
     width: usize,
     height: usize,
-    rustbox: RustBox,
+    term: Termfest,
+    events: Receiver<Event>,
 }
 
 impl Ui {
     pub fn new() -> Ui {
-        let rustbox = match RustBox::init(std::default::Default::default()) {
-            Ok(r) => r,
-            Err(e) => panic!("{}", e),
-        };
-        Ui{ width: rustbox.width(), height: rustbox.height(), rustbox: rustbox }
+        let (term, events) = Termfest::hold().expect("failed to initialize terminal");
+        let (width, height) = term.lock_screen().size();
+        Ui {
+            width,
+            height,
+            term,
+            events,
+        }
     }
 
-    pub fn start(self, sq: Arc<Mutex<sq::Sq>>, input: Arc<Mutex<String>>,
-                 intr_tx: Sender<()>, render_tx: Sender<usize>, render_rx: Receiver<usize>) {
-        let _ = thread::scoped(move|| {
-            // rendering thread
-            loop {
-                if let Ok(h) = render_rx.recv() {
-                    
-                } else {
-                    panic!("rendering thread: recv error");
-                }
-            }
-        });
+    pub fn start(self,
+                 sq: Arc<Mutex<Sq>>,
+                 input: Arc<Mutex<String>>,
+                 intr_tx: Sender<()>,
+                 render_tx: Sender<usize>,
+                 render_rx: Receiver<usize>) {
         loop {
-            if let Ok(rustbox::Event::KeyEvent(Some(key))) = self.rustbox.poll_event(false) {
-                match key {
-                    Key::Char(c) => {
+            for ev in self.events.iter() {
+                match ev {
+                    Event::Char(c) => {
                         input.lock().unwrap().push(c);
                         intr_tx.send(()).unwrap();
-                    },
-                    _ => {},
+                    }
+                    _ => {}
                 }
-            } else {
                 render_tx.send(0).unwrap();
             }
         }
     }
 
     pub fn clear(&self) {
-        self.rustbox.clear();
+        self.term.lock_screen().clear();
     }
 
 
     pub fn show_prompt(&self, input: &str) {
+        let mut screen = self.term.lock_screen();
         for x in 0..self.width {
-            self.rustbox.print_char(x, 0, rustbox::RB_NORMAL, Color::Default, Color::Default, ' ');
+            screen.put_cell(x,
+                            0,
+                            Cell {
+                                ch: ' ',
+                                attribute: Attribute::default(),
+                            });
         }
         let prompt = "> ";
-        self.rustbox.print(0, 0, rustbox::RB_NORMAL, Color::Default, Color::Default, prompt);
-        self.rustbox.print(prompt.len(), 0, rustbox::RB_NORMAL, Color::Default, Color::Default, input);
-        self.rustbox.set_cursor((prompt.len() + input.len()) as isize, 0);
-        self.rustbox.present();
+        screen.print(0, 0, prompt, Attribute::default());
+        screen.print(prompt.len(), 0, input, Attribute::default());
+        screen.move_cursor(prompt.len() + input.len(), 0);
     }
 
     fn show_result(&self, result: &result::Result, y: usize, selected: bool) {
-        if y >= self.height { return }
-        let bg = if selected { Color::Green } else { Color::Default };
-        for x in 0..self.width {
-            self.rustbox.print_char(x, y+1, rustbox::RB_NORMAL, Color::Default, bg, ' ');
-        }
-        if result.matches.is_empty() {
-            self.rustbox.print(0, y+1, rustbox::RB_NORMAL, Color::Default, bg, &result.string);
+        if y >= self.height {
             return;
         }
-        for (ref idx, c) in result.string.chars().enumerate() {
-            let fg = if result.matches.contains(idx) { Color::Red } else { Color::Default };
-            self.rustbox.print_char(*idx, y+1, rustbox::RB_NORMAL, fg, bg, c);
+        let bg = if selected {
+            Color::Green
+        } else {
+            Color::Default
+        };
+        let mut screen = self.term.lock_screen();
+        for x in 0..self.width {
+            screen.put_cell(x,
+                            y + 1,
+                            Cell {
+                                ch: ' ',
+                                attribute: Attribute {
+                                    bg: bg,
+                                    ..Attribute::default()
+                                },
+                            });
         }
-        self.rustbox.present();
+        if result.matches.is_empty() {
+            screen.print(0,
+                         y + 1,
+                         &result.string,
+                         Attribute {
+                             bg: bg,
+                             ..Attribute::default()
+                         });
+            return;
+        }
+        for (idx, c) in result.string.chars().enumerate() {
+            let fg = if result.matches.contains(&idx) {
+                Color::Red
+            } else {
+                Color::Default
+            };
+            screen.put_cell(idx,
+                            y + 1,
+                            Cell {
+                                ch: c,
+                                attribute: Attribute {
+                                    fg: fg,
+                                    bg: bg,
+                                    ..Attribute::default()
+                                },
+                            });
+        }
     }
 }
